@@ -12,6 +12,7 @@ recommends 'build-essential'
 recommends 'xml'
 recommends 'java'
 recommends 'monit'
+recommends 'nagios'
 
 provides 'elasticsearch'
 provides 'elasticsearch::data'
