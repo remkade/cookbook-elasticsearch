@@ -10,9 +10,10 @@ node.normal[:elasticsearch]  ||= {}
 node.normal[:elasticsearch]    = DeepMerge.merge(node.default[:elasticsearch].to_hash, node.normal[:elasticsearch].to_hash)
 node.normal[:elasticsearch]    = DeepMerge.merge(node.normal[:elasticsearch].to_hash, settings.to_hash)
 
+
 # === VERSION AND LOCATION
 #
-default.elasticsearch[:version]       = "0.20.5"
+default.elasticsearch[:version]       = "0.90.5"
 default.elasticsearch[:host]          = "http://download.elasticsearch.org"
 default.elasticsearch[:repository]    = "elasticsearch/elasticsearch"
 default.elasticsearch[:filename]      = "elasticsearch-#{node.elasticsearch[:version]}.tar.gz"
@@ -35,12 +36,6 @@ default.elasticsearch[:path][:logs] = "/usr/local/var/log/elasticsearch"
 default.elasticsearch[:pid_path]  = "/usr/local/var/run/elasticsearch"
 default.elasticsearch[:pid_file]  = "#{node.elasticsearch[:pid_path]}/#{node.elasticsearch[:node][:name].to_s.gsub(/\W/, '_')}.pid"
 
-# Deprecation notice for legacy path configuration
-Chef::Log.warn "DEPRECATION WARNING! The 'conf_path', 'data_path' and 'log_path' attributes have changed, and will be removed in the next release. Please review your attributes."
-default.elasticsearch[:conf_path] = default.elasticsearch[:path][:conf]
-default.elasticsearch[:data_path] = default.elasticsearch[:path][:data]
-default.elasticsearch[:log_path]  = default.elasticsearch[:path][:logs]
-
 # === MEMORY
 #
 # Maximum amount of memory to use is automatically computed as one half of total available memory on the machine.
@@ -48,6 +43,16 @@ default.elasticsearch[:log_path]  = default.elasticsearch[:path][:logs]
 #
 allocated_memory = "#{(node.memory.total.to_i * 0.6 ).floor / 1024}m"
 default.elasticsearch[:allocated_memory] = allocated_memory
+
+# === GARBAGE COLLECTION SETTINGS
+#
+default.elasticsearch[:gc_settings] =<<-CONFIG
+  -XX:+UseParNewGC
+  -XX:+UseConcMarkSweepGC
+  -XX:CMSInitiatingOccupancyFraction=75
+  -XX:+UseCMSInitiatingOccupancyOnly
+  -XX:+HeapDumpOnOutOfMemoryError
+CONFIG
 
 # === LIMITS
 #
@@ -71,6 +76,12 @@ default.elasticsearch[:gateway][:type] = 'local'
 default.elasticsearch[:gateway][:expected_nodes] = 1
 
 default.elasticsearch[:thread_stack_size] = "256k"
+
+default.elasticsearch[:env_options] = ""
+
+# === PORT
+#
+default.elasticsearch[:http][:port] = 9200
 
 # === CUSTOM CONFIGURATION
 #

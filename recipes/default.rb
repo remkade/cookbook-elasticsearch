@@ -26,6 +26,8 @@ end
 bash "remove the elasticsearch user home" do
   user    'root'
   code    "rm -rf  #{node.elasticsearch[:dir]}/elasticsearch"
+
+  not_if  "test -L #{node.elasticsearch[:dir]}/elasticsearch"
   only_if "test -d #{node.elasticsearch[:dir]}/elasticsearch"
 end
 
@@ -65,6 +67,9 @@ end
 
 # Download, extract, symlink the elasticsearch libraries and binaries
 #
+ark_prefix_root = node.elasticsearch[:dir] || node.ark[:prefix_root]
+ark_prefix_home = node.elasticsearch[:dir] || node.ark[:prefix_home]
+
 ark "elasticsearch" do
   url   node.elasticsearch[:download_url]
   owner node.elasticsearch[:user]
@@ -72,12 +77,22 @@ ark "elasticsearch" do
   version node.elasticsearch[:version]
   has_binaries ['bin/elasticsearch', 'bin/plugin']
   checksum node.elasticsearch[:checksum]
+  prefix_root   ark_prefix_root
+  prefix_home   ark_prefix_home
 
   notifies :start,   'service[elasticsearch]'
   notifies :restart, 'service[elasticsearch]'
+
+  not_if do
+    link   = "#{node.elasticsearch[:dir]}/elasticsearch"
+    target = "#{node.elasticsearch[:dir]}/elasticsearch-#{node.elasticsearch[:version]}"
+    binary = "#{target}/bin/elasticsearch"
+
+    ::File.directory?(link) && ::File.symlink?(link) && ::File.readlink(link) == target && ::File.exists?(binary)
+  end
 end
 
-# Increase open file limits
+# Increase open file and memory limits
 #
 bash "enable user limits" do
   user 'root'
@@ -89,20 +104,13 @@ bash "enable user limits" do
   not_if { ::File.read("/etc/pam.d/su").match(/^session    required   pam_limits\.so/) }
 end
 
-bash "increase limits for the elasticsearch user" do
-  user 'root'
+log "increase limits for the elasticsearch user"
 
-  code <<-END.gsub(/^    /, '')
-    echo '#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    nofile    #{node.elasticsearch[:limits][:nofile]}'  >> /etc/security/limits.conf
-    echo '#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    memlock   #{node.elasticsearch[:limits][:memlock]}' >> /etc/security/limits.conf
+file "/etc/security/limits.d/10-elasticsearch.conf" do
+  content <<-END.gsub(/^    /, '')
+    #{node.elasticsearch.fetch(:user, "elasticsearch")}     -    nofile    #{node.elasticsearch[:limits][:nofile]}
+    #{node.elasticsearch.fetch(:user, "elasticsearch")}     -    memlock   #{node.elasticsearch[:limits][:memlock]}
   END
-
-  not_if do
-    file = ::File.read("/etc/security/limits.conf")
-    file.include?("#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    nofile    #{node.elasticsearch[:limits][:nofile]}") \
-    &&           \
-    file.include?("#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    memlock   #{node.elasticsearch[:limits][:memlock]}")
-  end
 end
 
 # Create file with ES environment variables
